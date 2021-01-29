@@ -1,0 +1,21 @@
+{
+  "zero" : 0,
+  "positive_int": 1,
+  "negative_int": -1,
+  "16bits_times_two": 65536,
+  "16bits_times_two_neg": -65536,
+  "32bits_times_two": 4294967296,
+  "32bits_times_two_neg": -4294967296,
+  "64bits_times_two": 1.844674407E19,
+  "64bits_times_two_neg": -1.844674407E19,
+  "128bits_times_two": 6.805647338E38,
+  "128bits_times_two_neg": -6.805647338E38,
+  "128bits_times_two_full": 340282366920938463463374607431768211455,
+  "float_31": 0.000000001,
+  "float_31_2": 2147483647.1,
+  "float_62": 2.1684043e-19,
+  "neg_float_62": -2.1684043e-19,
+  "float_127": 5.8774718e-39 ,
+  "neg_float_127": -5.8774718e-39,
+  "floooooat": 5.8774718e-59
+}

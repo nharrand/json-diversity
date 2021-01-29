@@ -1,0 +1,16 @@
+{
+  "short_min":-32768,
+  "short_max":32767,
+  "integer_min":-2147483648,
+  "integer_max":2147483647,
+  "long_min":-9223372036854775808,
+  "long_max":9223372036854775807,
+  "float_min_normal":1.17549435E-38,
+  "float_max":3.4028235E38,
+  "float_min_value":1.4E-45,
+  "double_min_normal":2.2250738585072014E-308,
+  "double_max":1.7976931348623157E308,
+  "double_min_value":4.9E-324,
+  "bigdecimal":4.9E-325,
+  "biginteger":85070591730234615847396907784232501249
+}

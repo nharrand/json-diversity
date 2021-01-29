@@ -1,0 +1,21 @@
+Lib,Super,Object / Key,Array,String,Number,Boolean,Null
+cookjson,JSR,E HashMap / String,E ArrayList,C String,"C BigDecimal, Double, Long, Integer, byte[]",Enum,Enum
+corn,Yes,C ConcurrentHashMap / String,C CopyOnWriteArrayList,C String,C String,C String,T
+fastjson,Yes,C/I HashMap/LinkedHashMap / String,C/I ArrayList,String,"Integer, Long, BigInteger, BigDecimal",Boolean,null
+flexjson,No,HashMap / String,ArrayList,String,"Long, Double",Boolean,null
+genson,No,HashMap / String,ArrayList,String,"Long, Double",Boolean,null
+gson,Yes,C LinkedTreeMap / String,C ArrayList,C Object,C Object,C Object,T
+jackson,Yes,C LinkedHashMap / String,C ArrayList,C String,"C int, long, double, float, short, BigDecimal, BigInteger",C boolean,T
+jjson,Yes,C HashMap / String,C ArrayList,C StringBuffer,C String,C boolean,T
+johnzon,JSR,C UnmodifiableMap / String E AbstractMap,C List E AbstractList,C String,"C BigDecimal, double, long",C Enum,C enum
+json,No,C HashMap / String,C ArrayList,String,"Integer, BigDecimal",Boolean,T
+json-argo,Yes,C LinkedHashMap /JsonStringNode,C List,C String,C String,C Enum,C enum
+json-io,No,E LinkedHashMap / Object,Object[],String,"Double, Long",Boolean,null
+json-lib,Yes,C ListOrderedMap I Map / String,C ArrayList,String,"Double, Integer",Boolean,T
+json-util,No,LinkedHashMap / String,ArrayList,String,"Long, Double",Boolean,null
+jsonij,Yes,C LinkedHashMap / String,C ArrayList,C String,"E C double, long, Number",Enum,Enum
+jsonp,JSR,C UnmodifiableMap E AbstractMap / String,C List,C String,"C int, long, BigDecimal",C Enum,C enum
+json-simple,No,E HashMap / Object,E ArrayList,String,"Long, Double",Boolean,null
+mjson,Yes,C HashMap / String,C ArrayList,C String,C Number,C boolean ,T
+progbase,No,HashMap / String,ArrayList,String,"Double, Integer",Boolean,null
+sojo,No,LinkedHashMap / String,ArrayList,String,"Long, Double",Boolean,null

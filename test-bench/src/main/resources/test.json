@@ -1,0 +1,9 @@
+{
+	"object": {"str":"string"},
+	"array": [1,-1,2.5,-2.5,3],
+	"integer": 1, 
+	"real": 0.0000003, 
+	"nulll": null,
+	"boolean": false, 
+	"str":"string"
+}

@@ -1,0 +1,1176 @@
+---
+title: "JSON parser comparaison 3"
+output: html_notebook
+---
+
+```{r init}
+library(tidyverse)
+library(venn)
+library(xtable)
+```
+
+
+```{r}
+setwd("~/Documents/depswap")
+
+
+design <- read_csv("test-bench/DesignDiveristy.csv", col_names = T, col_types = cols())
+
+
+print(xtable(design), include.rownames = FALSE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+# Load results from bench
+
+```{r read, echo=FALSE, warning=FALSE, warning=FALSE}
+setwd("~/Documents/depswap")
+#reportsDir = "yasjf4j/json-implem-tester/results/"
+reportsDir = "test-bench/results/"
+
+fileList = list.files(
+  path = reportsDir,
+  pattern = "*.csv"
+  )
+
+dataset <- data.frame(matrix(ncol = 4, nrow = 0))
+colnames(dataset) <- c("Parser","Category","File","Result")
+
+for (i in 1:length(fileList)) {
+  implem <- strsplit(fileList[i], "_")[[1]][1]
+  category <- strsplit(fileList[i], "_")[[1]][2]
+  individualReport <- read_csv(paste(reportsDir, fileList[i], sep = ""), col_names = T, col_types = cols())
+  dataset <- dplyr::bind_rows(dataset, individualReport)
+}
+
+
+dataset <- dataset %>% filter(Parser != "klaxon")
+```
+
+# Load Library descriptions
+
+```{r read-implem-desc}
+
+inputfile = "../data/implem.csv"
+implem_desc <- read_csv(inputfile, col_names = T, col_types = cols())
+```
+
+```{r ouput-implem-desc}
+
+i_desc <- implem_desc %>%
+  filter(Implemented == TRUE) %>% 
+  select(Library, Commit, Star, Version, `Last activity`) %>%
+  arrange(Library)
+
+i_desc[ is.na(i_desc) ] <- '-'
+i_desc_tbl <- xtable(i_desc)
+print(i_desc_tbl, include.rownames = FALSE)
+
+```
+# RQ1 & 2
+
+```{r reshape}
+#d <- dataset %>% mutate(r = as.factor(Result)) %>% select(File, Parser, Category, r) %>% spread(Parser,r)
+
+dataset <- dataset %>% mutate(Category = ifelse(Category == "undefined", "correct", Category))
+
+#d %>% mutate(same =(`Gson` == `json-simple` & Gson == `org.json`)) %>% group_by(Category,same) %>% summarise(n = n())
+
+```
+
+
+```{r printd}
+overview <- dataset %>% mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  group_by(Library, Category, r, .drop=FALSE) %>% 
+  summarize(n = n()) %>% 
+  spread(r,n) %>%
+  ungroup() %>%
+  mutate(Category = ifelse(Category == "errored", "ill-formed", Category)) %>%
+  select(Category, Library, OK, EQUIVALENT_OBJECT, NON_EQUIVALENT_OBJECT, UNEXPECTED_OBJECT, NULL_OBJECT, PARSE_EXCEPTION, PRINT_EXCEPTION, CRASH) %>%
+  arrange(`Category`,`Library`)
+
+overview[ overview == 0 ] <- '-'
+overview[ overview == "jackson-databind" ] <- "jackson"
+
+overview_tbl <- xtable(overview)
+print(overview_tbl, include.rownames = FALSE, rotate.colnames = TRUE)
+#ggsave("bench.pdf", p, device = "pdf",units = "cm", width = 21, height = 120)
+
+```
+
+
+```{r explore}
+
+
+dataset %>% filter(Category == "correct") %>% 
+  mutate(r = ifelse(Result == "OK" | Result == "EQUIVALENT_OBJECT", TRUE, FALSE)) %>% 
+  select(Category, File, Parser, r) %>% 
+  spread(Parser,r) %>%
+  filter(cookjson == FALSE & corn == FALSE & fastjson == FALSE & `flex-json` == FALSE)
+
+
+dataset %>% filter(Category == "correct") %>% filter(Parser != "klaxon") %>% 
+  filter(Result == "OK" | Result == "EQUIVALENT_OBJECT") %>%
+  group_by(File) %>%
+  summarise(n = n()) %>% group_by(n) %>% summarise(c = n())
+
+
+dataset %>% filter(Category == "errored") %>% filter(Parser != "klaxon") %>% 
+  filter(Result == "PARSE_EXCEPTION" | Result == "NULL_OBJECT") %>%
+  group_by(File) %>%
+  summarise(n = n()) %>% group_by(n) %>% summarise(c = n())
+
+
+dataset %>% filter(Category == "errored") %>% filter(Parser != "klaxon") %>% select(Parser) %>% unique()
+```
+
+
+
+```{r total-outcome-correct}
+
+totalCorrect <- dataset %>% mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  filter(Category == "correct") %>%
+  select(File, Library, r) %>% 
+  count(File, r) %>% 
+  count(r) %>%
+  spread(r,n) %>% 
+  mutate(Library = "Total") %>% 
+  mutate(Category = "correct") %>%
+  select(Library, OK, EQUIVALENT_OBJECT, NON_EQUIVALENT_OBJECT, NULL_OBJECT, PARSE_EXCEPTION, PRINT_EXCEPTION, CRASH)
+  
+
+
+```
+
+
+
+
+```{r printdc}
+overview <- dataset %>% mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  group_by(Library, Category, r, .drop=FALSE) %>% 
+  summarize(n = n()) %>% 
+  spread(r,n) %>%
+  ungroup() %>%
+  mutate(Category = ifelse(Category == "errored", "ill-formed", Category)) %>%
+  filter(Category == "correct") %>%
+  select(Library, OK, EQUIVALENT_OBJECT, NON_EQUIVALENT_OBJECT, NULL_OBJECT, PARSE_EXCEPTION, PRINT_EXCEPTION, CRASH) %>%
+  arrange(Library)
+
+overview[ overview == 0 ] <- '-'
+overview[ overview == "jackson-databind" ] <- "jackson"
+
+overview <- rbind(overview, totalCorrect)
+
+overview_tbl <- xtable(overview)
+print(overview_tbl, include.rownames = FALSE, rotate.colnames = TRUE)
+#ggsave("bench.pdf", p, device = "pdf",units = "cm", width = 21, height = 120)
+
+```
+
+```{r printdcsec}
+totPerLine <- dataset %>% filter(Category == "correct") %>% filter(Result != "FILE_ERROR") %>% select(File) %>% unique() %>% count()
+totPerLine <- totPerLine$n[1]
+
+totalCorrect <- dataset %>% mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  filter(Category == "correct") %>%
+  select(File, Library, r) %>% 
+  count(File, r) %>% 
+  count(r) %>%
+  spread(r,n) %>% 
+  mutate(Library = "Total") %>% 
+  mutate(Category = "correct") %>%
+  mutate(totExpected = OK + EQUIVALENT_OBJECT, totSilent = NON_EQUIVALENT_OBJECT, totError = NULL_OBJECT + PARSE_EXCEPTION + PRINT_EXCEPTION + CRASH) %>%
+  mutate(totalExpected = "-", 
+         totalSilent = NON_EQUIVALENT_OBJECT, 
+         totalError = "-") %>%
+  select(Library, OK, EQUIVALENT_OBJECT, totalExpected, totalSilent, NULL_OBJECT, PARSE_EXCEPTION, PRINT_EXCEPTION, CRASH, totalError)
+
+overview <- dataset %>% mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  group_by(Library, Category, r, .drop=FALSE) %>% 
+  summarize(n = n()) %>% 
+  spread(r,n) %>%
+  ungroup() %>%
+  mutate(Category = ifelse(Category == "errored", "ill-formed", Category)) %>%
+  filter(Category == "correct") %>%
+  mutate(totExpected = OK + EQUIVALENT_OBJECT, totSilent = NON_EQUIVALENT_OBJECT, totError = NULL_OBJECT + PARSE_EXCEPTION + PRINT_EXCEPTION + CRASH) %>%
+  mutate(rex = (totExpected / totPerLine), rs = (totSilent / totPerLine), rer = (totError / totPerLine)) %>%
+  mutate(totalExpected = paste0(totExpected, " (", round(rex, digits=3)*100, "%)"), 
+         totalSilent = paste0(totSilent, " (", round(rs, digits=3)*100, "%)"), 
+         totalError = paste0(totError, " (", round(rer, digits=3)*100, "%)")) %>%
+  select(Library, OK, EQUIVALENT_OBJECT, totalExpected, totalSilent, NULL_OBJECT, PARSE_EXCEPTION, PRINT_EXCEPTION, CRASH, totalError) %>%
+  arrange(Library)
+
+overview[ overview == 0 ] <- '-'
+overview[ overview == "jackson-databind" ] <- "jackson"
+
+overview <- rbind(overview, totalCorrect)
+
+overview_tbl <- xtable(overview)
+print(overview_tbl, include.rownames = FALSE, rotate.colnames = TRUE)
+#ggsave("bench.pdf", p, device = "pdf",units = "cm", width = 21, height = 120)
+
+```
+
+```{r playcor}
+dataset %>% mutate(Result = ifelse(Result == "OK" | Result == "EQUIVALENT_OBJECT", "EXPECTED", ifelse(Result == "NON_EQUIVALENT_OBJECT", "SILENT", "ERROR"))) %>%
+  mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  filter(Category == "correct") %>%
+  select(File, Library, r) %>% 
+  count(File, r) %>% 
+  count(r) %>%
+  spread(r,n)
+```
+
+
+```{r total-outcome-errored}
+
+tmpToObs <- dataset %>% mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  filter(Category == "errored") %>%
+  select(File, Library, r)
+
+totalErrored <- dataset %>% mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  filter(Category == "errored") %>%
+  select(File, Library, r) %>% 
+  count(File, r) %>% 
+  count(r) %>%
+  spread(r,n) %>% 
+  mutate(Library = "Total") %>% 
+  mutate(Category = "errored") %>%
+  select(Library, PARSE_EXCEPTION, NULL_OBJECT, UNEXPECTED_OBJECT, CRASH)
+  
+
+
+```
+
+```{r printde}
+
+overview <- dataset %>% mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  group_by(Library, Category, r, .drop=FALSE) %>% 
+  summarize(n = n()) %>% 
+  spread(r,n) %>%
+  ungroup() %>%
+  mutate(Category = ifelse(Category == "errored", "ill-formed", Category)) %>%
+  filter(Category == "ill-formed") %>%
+  select(Library, PARSE_EXCEPTION, NULL_OBJECT, UNEXPECTED_OBJECT, CRASH) %>%
+  arrange(Library)
+
+overview[ overview == 0 ] <- '-'
+overview[ overview == "jackson-databind" ] <- "jackson"
+overview <- rbind(overview, totalErrored)
+
+overview_tbl <- xtable(overview)
+print(overview_tbl, include.rownames = FALSE, rotate.colnames = TRUE)
+#ggsave("bench.pdf", p, device = "pdf",units = "cm", width = 21, height = 120)
+
+```
+
+```{r printerrsec}
+totPerLine <- dataset %>% filter(Category == "errored") %>% filter(Result != "FILE_ERROR") %>% select(File) %>% unique() %>% count()
+totPerLine <- totPerLine$n[1]
+
+tmpToObs <- dataset %>% mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  filter(Category == "errored") %>%
+  select(File, Library, r)
+
+totalErrored <- dataset %>% mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  filter(Category == "errored") %>%
+  select(File, Library, r) %>% 
+  count(File, r) %>% 
+  count(r) %>%
+  spread(r,n) %>% 
+  mutate(totExpected = PARSE_EXCEPTION + NULL_OBJECT, totSilent = UNEXPECTED_OBJECT, totError = CRASH) %>%
+  mutate(totalExpected = "-", 
+         totalSilent = UNEXPECTED_OBJECT, 
+         totalError = CRASH) %>%
+  mutate(Library = "Total") %>% 
+  mutate(Category = "errored") %>%
+  select(Library, PARSE_EXCEPTION, NULL_OBJECT, totalExpected, totalSilent, totalError)
+
+
+overview <- dataset %>% mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  group_by(Library, Category, r, .drop=FALSE) %>% 
+  summarize(n = n()) %>% 
+  spread(r,n) %>%
+  ungroup() %>%
+  mutate(Category = ifelse(Category == "errored", "ill-formed", Category)) %>%
+  filter(Category == "ill-formed") %>%
+  mutate(totExpected = PARSE_EXCEPTION + NULL_OBJECT, totSilent = UNEXPECTED_OBJECT, totError = CRASH) %>%
+  mutate(rex = (totExpected / totPerLine), rs = (totSilent / totPerLine), rer = (totError / totPerLine)) %>%
+  mutate(totalExpected = paste0(totExpected, " (", round(rex, digits=3)*100, "%)"), 
+         totalSilent = paste0(totSilent, " (", round(rs, digits=3)*100, "%)"), 
+         totalError = paste0(totError, " (", round(rer, digits=3)*100, "%)")) %>%
+  select(Library, PARSE_EXCEPTION, NULL_OBJECT, totalExpected, totalSilent, totalError) %>%
+  arrange(Library)
+
+overview[ overview == 0 ] <- '-'
+overview[ overview == "jackson-databind" ] <- "jackson"
+overview <- rbind(overview, totalErrored)
+
+overview_tbl <- xtable(overview)
+print(overview_tbl, include.rownames = FALSE, rotate.colnames = TRUE)
+#ggsave("bench.pdf", p, device = "pdf",units = "cm", width = 21, height = 120)
+
+```
+
+```{r playerr}
+dataset %>% mutate(Result = ifelse(Result == "PARSE_EXCEPTION" | Result == "NULL_OBJECT", "EXPECTED", ifelse(Result == "UNEXPECTED_OBJECT", "SILENT", "ERROR"))) %>%
+  mutate(r = as.factor(Result)) %>% 
+  select(File, Parser, Category, r) %>% 
+  mutate(Library = gsub("yasjf4j-", "", Parser)) %>%
+  filter(Category == "errored") %>%
+  select(File, Library, r) %>% 
+  count(File, r) %>% 
+  count(r) %>%
+  spread(r,n)
+```
+
+```{r jeu}
+dataset %>% filter(Parser == "json") %>% filter(Category == "correct") %>% filter(Result == "NON_EQUIVALENT_OBJECT")
+
+
+dataset %>% filter(File == "n_array_number_and_comma.json") %>% filter(Result == "UNEXPECTED_OBJECT")
+dataset %>% filter(File == "i_number_huge_exp.json") %>% filter(Result == "OK" | Result == "EQUIVALENT_OBJECT")
+dataset %>% filter(File == "fail14.json") %>% filter(Result == "UNEXPECTED_OBJECT")
+dataset %>% filter(File == "fail15.json") %>% filter(Result != "UNEXPECTED_OBJECT")
+dataset %>% filter(File == "n_object_unquoted_key.json") %>% filter(Result == "UNEXPECTED_OBJECT")
+
+#compute nb correct per lib
+dataset  %>% filter(Category == "correct") %>% filter(Result == "OK" | Result == "EQUIVALENT_OBJECT") %>% group_by(Parser) %>% summarise(n = n())
+
+dataset %>% filter(Category == "errored") %>% filter(Parser == "gson" | Parser == "json" | Parser == "json-simple" | Parser == "fastjson" | Parser == "jackson") %>%
+  filter(Result == "PARSE_EXCEPTION" | Result == "NULL_OBJECT") %>% group_by(File) %>% count()
+```
+
+```{r toto}
+p <- dataset %>% mutate(r = as.factor(Result)) %>% select(File,Parser,Category, r) %>% 
+  ggplot(aes(x = Parser, y = File, fill=r)) +
+      geom_raster() +
+      theme_bw() +
+      scale_x_discrete(drop = FALSE) +
+      scale_y_discrete(drop = FALSE) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave("bench2.pdf", p, device = "pdf",units = "cm", width = 21, height = 120)
+```
+
+
+```{r explore-c}
+
+implems <-dataset$Parser %>% unique()
+
+p1 <- dataset %>% filter(Category == "correct") %>% 
+  filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+  mutate(r = as.factor(Result)) %>% select(File, Parser, Category, r) %>% 
+  ggplot(aes(x = Parser, y = File, fill=r)) +
+      geom_raster() +
+      theme_bw() +
+      scale_x_discrete(drop = FALSE) +
+      scale_y_discrete(drop = FALSE) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+p1
+ggsave("bench-correct.pdf", p1, device = "pdf",units = "cm", width = 21, height = 120)
+
+
+```
+
+```{r explore-a}
+
+implems <-dataset$Parser %>% unique()
+
+p1 <- dataset[order(dataset$Parser,dataset$File),] %>% 
+  mutate(r = as.factor(Result)) %>% select(File, Parser, Category, r) %>% 
+  ggplot(aes(x = Parser, y = File, fill=r)) +
+      geom_raster() +
+      theme_bw() +
+      scale_x_discrete(drop = FALSE) +
+      scale_y_discrete(drop = FALSE) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+p1
+ggsave("bench-all.pdf", p1, device = "pdf",units = "cm", width = 21, height = 120)
+
+
+```
+
+```{r distancefill}
+#d2 <- dataset
+d2 <- dataset[order(dataset$Parser,dataset$File),] %>% filter(Result != "FILE_ERROR")
+
+distanceframe <- data.frame(ParserA=character(), ParserB=character(), Distance=numeric(), Corpus=character(), stringsAsFactors = FALSE)
+
+fill_distance <- function(data, parsers, df, corpus) {
+  avg <- 0
+  total <- data %>% count()
+  n <- (length(parsers) - 1) * length(parsers)
+  dist <- numeric(n)
+  i <- 0
+  for(parser1 in parsers) {
+    for(parser2 in parsers) {
+      if(parser1 != parser2) {
+        i <- i + 1
+        d <- data %>% select(File, parser1, parser2) %>% filter(.[[2]] == .[[3]]) %>% count()
+        val <- (1 - (d / total))
+        dist[i] <- val[1]
+        avg <- avg + (1 - (d / total))
+        
+        dframe <- data.frame("ParserA" = parser1, "ParserB" = parser2, "Distance" = val[1], "Corpus" = corpus)
+        df <- rbind(df, dframe)
+      }
+    }
+  }
+  #print(paste0("sum ", avg, " n ", n))
+  avg <- avg / n
+  #print(paste0("avg ", avg))
+  return(df)
+}
+
+parsersss <- dataset %>% select(Parser) %>% unique()
+parsersss <- parsersss$Parser
+
+#tmp <- d2 %>% filter(Category == "correct") %>% 
+#  select(Parser,File) %>% group_by(Parser) %>% summarise(n=n())
+
+#tmp[duplicated(tmp)]
+
+da <- d2 %>% filter(Category == "correct") %>% 
+  select(Parser,File,Result) %>% 
+  mutate(Result = ifelse(Result == "OK" | Result == "EQUIVALENT_OBJECT", "EXPECTED", ifelse(Result == "NON_EQUIVALENT_OBJECT", "SILENT", "ERROR"))) %>%
+  spread(Parser, Result)
+distanceframe <- fill_distance(da, parsersss, distanceframe, "Well-Formed")
+
+da <- d2 %>% filter(Category == "errored") %>% 
+  select(Parser,File,Result) %>% 
+  mutate(Result = ifelse(Result == "PARSE_EXCEPTION" | Result == "NULL_OBJECT", "EXPECTED", ifelse(Result == "UNEXPECTED_OBJECT", "SILENT", "ERROR"))) %>%
+  spread(Parser, Result)
+distanceframe <- fill_distance(da, parsersss, distanceframe, "Ill-Formed")
+
+#da <- d2 %>% filter(Category == "correct") %>% 
+#  select(Parser,File,Result) %>% spread(Parser, Result)
+#distanceframe <- fill_distance(da, parsersss, distanceframe, "Well-Formed")
+
+#da <- d2 %>% filter(Category == "errored") %>%
+#  select(Parser,File,Result) %>% spread(Parser, Result)
+#distanceframe <- fill_distance(da, parsersss, distanceframe, "Ill-Formed")
+
+#distanceframe %>% order_by(distanceframe$n)
+```
+
+```{r distancef}
+avg_distance <- function(data, parsers) {
+  avg <- 0
+  total <- data %>% count()
+  n <- (length(parsers) - 1) * length(parsers)
+  dist <- numeric(n)
+  i <- 0
+  for(parser1 in parsers) {
+    for(parser2 in parsers) {
+      if(parser1 != parser2) {
+        i <- i + 1
+        d <- data %>% select(File, parser1, parser2) %>% filter(.[[2]] == .[[3]]) %>% count()
+        #print(paste0(parser1, " ", parser2, " ", d, "/", total, " = ", (d / total)))
+        val <- (1 - (d / total))
+        dist[i] <- val[1]
+        avg <- avg + (1 - (d / total))
+        
+      }
+    }
+  }
+  #print(paste0("sum ", avg, " n ", n))
+  avg <- avg / n
+  #print(paste0("avg ", avg))
+  return(unlist(dist))
+}
+
+```
+
+
+```{r distance}
+#d2 <- dataset
+d2 <- dataset[order(dataset$Parser,dataset$File),] %>% filter(Result != "FILE_ERROR")
+da <- d2 %>% filter(Category == "correct") %>% 
+  filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+  select(Parser, File, Result) %>% spread(Parser, Result)
+a <- avg_distance(da, c("fastjson","gson","json","json-simple","jackson-databind"))
+a
+
+da <- d2 %>% filter(Category == "errored") %>% 
+  filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+  select(Parser, File, Result) %>% spread(Parser, Result)
+b <- avg_distance(da, c("fastjson","gson","json","json-simple","jackson-databind"))
+b
+
+mparsers <- c("fastjson", "gson","json","json-simple","jackson-databind")
+
+median(a)
+median(b)
+```
+
+```{r distanceall}
+
+#d2 <- dataset
+d2 <- dataset[order(dataset$Parser,dataset$File),] %>% filter(Result != "FILE_ERROR")
+
+parsersss <- dataset %>% select(Parser) %>% unique()
+parsersss <- parsersss$Parser
+
+#tmp <- d2 %>% filter(Category == "correct") %>% 
+#  select(Parser,File) %>% group_by(Parser) %>% summarise(n=n())
+
+#tmp[duplicated(tmp)]
+
+da <- d2 %>% filter(Category == "correct") %>% 
+  select(Parser,File,Result) %>% spread(Parser, Result)
+a <- avg_distance(da, parsersss)
+
+da <- d2 %>% filter(Category == "errored") %>% 
+  select(Parser,File,Result) %>% spread(Parser, Result)
+b <- avg_distance(da, parsersss)
+
+distances <- data.frame(cbind(a,b))
+colnames(distances) <- c("Well-formed","Ill-formed")
+median(a)
+median(b)
+
+mean(a)
+mean(b)
+
+t.test(a, b, alternative = "less")
+```
+
+
+```{r distanceall}
+
+#d2 <- dataset
+d2 <- dataset[order(dataset$Parser,dataset$File),] %>% filter(Result != "FILE_ERROR")
+
+parsersss <- dataset %>% select(Parser) %>% unique()
+parsersss <- parsersss$Parser
+
+#tmp <- d2 %>% filter(Category == "correct") %>% 
+#  select(Parser,File) %>% group_by(Parser) %>% summarise(n=n())
+
+#tmp[duplicated(tmp)]
+
+da <- d2 %>% filter(Category == "correct") %>% 
+  select(Parser,File,Result) %>% 
+  mutate(Result = ifelse(Result == "OK" | Result == "EQUIVALENT_OBJECT", "EXPECTED", ifelse(Result == "NON_EQUIVALENT_OBJECT", "SILENT", "ERROR"))) %>%
+  spread(Parser, Result)
+a <- avg_distance(da, parsersss)
+
+da <- d2 %>% filter(Category == "errored") %>% 
+  select(Parser,File,Result) %>% 
+  mutate(Result = ifelse(Result == "PARSE_EXCEPTION" | Result == "NULL_OBJECT", "EXPECTED", ifelse(Result == "UNEXPECTED_OBJECT", "SILENT", "ERROR"))) %>%
+  spread(Parser, Result)
+b <- avg_distance(da, parsersss)
+
+distances <- data.frame(cbind(a,b))
+colnames(distances) <- c("Well-formed","Ill-formed")
+median(a)
+median(b)
+
+mean(a)
+mean(b)
+
+t.test(a, b, alternative = "less")
+```
+
+
+```{r plot-dist}
+ggplot(data = distances) + 
+  geom_density(aes(x=`Well-formed`, colour = "Well-formed")) +
+  geom_density(aes(x=`Ill-formed`, colour = "Ill-formed")) +
+  theme_bw() +
+  scale_x_continuous(limits = c(0,1)) +
+  labs(x = "Pairwise distance", y = "Effectif", colour = "Corpus")
+
+
+
+disbis <- distances %>% gather(key = "Corpus", value = "Pairwise distance")
+ggplot(disbis, aes(x = `Pairwise distance`, fill = `Corpus`)) + 
+  geom_histogram(position = position_dodge(width = -0.01)) +
+  theme_bw() +
+  scale_x_continuous(limits = c(0,1)) +
+  labs(x = "Pairwise behavioral distance", y = "Effectif", colour = "Corpus")
+
+
+pw_dist_boxplot <- ggplot(disbis) + 
+  geom_boxplot(aes(y = `Pairwise distance`, x = `Corpus`)) +
+  theme_bw() + theme(text = element_text(size=16)) +
+  scale_y_continuous(limits = c(0,1)) +
+  labs(y = "Pairwise behavioral distance", x = element_blank()) + 
+  coord_flip()
+
+pw_dist_boxplot
+
+ggsave("pairwise_distance_distributions.pdf", pw_dist_boxplot,device="pdf", height = 1.5, width = 6,  units = c("in"))
+
+distTable <- do.call(cbind, lapply(distances, summary))
+xtable(distTable)
+
+
+pw_dist_violine <- ggplot(disbis) + 
+  geom_violin(aes(y = `Pairwise distance`, x = `Corpus`)) +
+  theme_bw() + theme(text = element_text(size=16)) +
+  scale_y_continuous(limits = c(0,1)) +
+  labs(y = "Pairwise behavioral distance", x = element_blank()) + 
+  coord_flip()
+pw_dist_violine
+ggsave("pairwise_distance_distributions_v.pdf", pw_dist_violine,device="pdf", height = 3, width = 6,  units = c("in"))
+
+
+pw_dist_violine_and_box <- ggplot(aes(y = `Pairwise distance`, x = `Corpus`), data=disbis) + 
+  geom_violin() +
+  geom_boxplot(width=0.1) +
+  theme_bw() + theme(text = element_text(size=16)) +
+  scale_y_continuous(limits = c(0,1)) +
+  labs(y = "Pairwise behavioral distance", x = element_blank()) + 
+  coord_flip()
+
+pw_dist_violine_and_box
+ggsave("pairwise_distance_distributions_v_b.pdf", pw_dist_violine_and_box,device="pdf", height = 2, width = 6,  units = c("in"))
+```
+
+```{r consensus}
+
+
+cd <- dataset %>% filter(Result != "FILE_ERROR") %>% 
+  mutate(Result = ifelse(Category == "correct" & (Result == "OK" | Result == "EQUIVALENT_OBJECT"), "CONFORMING", 
+                        ifelse(Category == "correct" & Result == "NON_EQUIVALENT_OBJECT", "SILENT", 
+                        ifelse(Category == "correct", "ERROR",
+                        ifelse(Result == "PARSE_EXCEPTION" | Result == "NULL_OBJECT", "CONFORMING", 
+                        ifelse(Result == "UNEXPECTED_OBJECT", "SILENT", 
+                        "ERROR"))))))
+cd_cor <- cd %>% filter(Category == "correct")  %>%
+  select(File,Result) %>%
+  group_by(File,Result, .drop=FALSE) %>%
+  summarise(n=n()) %>%
+  group_by(n,Result, .drop=FALSE) %>%
+  summarise(m=n()) %>%
+  mutate(m=100*m/206)
+
+cd_cor$Result <- as.factor(cd_cor$Result)
+
+bc <- ggplot(data=cd_cor) + geom_bar(aes(x=n, y=m, fill=Result), stat="identity") +
+  scale_x_discrete(limits = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)) +
+  scale_y_continuous(limits = c(0,50)) +
+  theme_bw() +
+  scale_fill_manual(values = c("#00DD00", "#990000", "#0000BB")) +
+  labs(y = "Share of Files (%)", x = "#Libraries that share behavior", fill = "Behavior")
+bc
+ggsave("consensus_well_formed.pdf", bc ,device="pdf", height = 2, width = 6,  units = c("in"))
+
+cd_err <- cd %>% filter(Category == "errored")  %>%
+  select(File,Result) %>%
+  group_by(File,Result, .drop=FALSE) %>%
+  summarise(n=n()) %>%
+  group_by(n,Result, .drop=FALSE) %>%
+  summarise(m=n()) %>%
+  mutate(m=100*m/267)
+
+cd_err$Result <- as.factor(cd_err$Result)
+
+be <- ggplot(data=cd_err) + geom_bar(aes(x=n, y=m, fill=Result), stat="identity") +
+  scale_x_discrete(limits = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)) +
+  scale_y_continuous(limits = c(0,50)) +
+  theme_bw() +
+  scale_fill_manual(values = c("#00DD00", "#990000", "#0000BB")) +
+  labs(y = "Share of Files (%)", x = "#Libraries that share behavior", fill = "Behavior")
+be
+ggsave("consensus_ill_formed.pdf", be ,device="pdf", height = 2, width = 6,  units = c("in"))
+
+
+cd %>% filter(Category == "correct")  %>%
+  select(File,Result) %>%
+  group_by(File,Result, .drop=FALSE) %>%
+  summarise(n=n()) %>% filter(n == 1 & Result == "SILENT")
+  #filter(File == "negative-zero.json") 27 error 32
+
+```
+
+
+```{r explore-e}
+
+implems <-dataset$Parser %>% unique()
+
+p1 <- dataset %>% filter(Category == "errored") %>% 
+  filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+  mutate(r = as.factor(Result)) %>% select(File,Parser,Category, r) %>% 
+  ggplot(aes(x = Parser, y = File, fill=r)) +
+      geom_raster() +
+      theme_bw() +
+      scale_x_discrete(drop = FALSE) +
+      scale_y_discrete(drop = FALSE) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave("bench-errored.pdf", p1, device = "pdf",units = "cm", width = 21, height = 120)
+
+
+```
+
+```{r explore-u}
+
+implems <-dataset$Parser %>% unique()
+
+p1 <- dataset %>% filter(Category == "undefined") %>% 
+  filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+  mutate(r = as.factor(Result)) %>% select(File,Parser,Category, r) %>% 
+  ggplot(aes(x = Parser, y = File, fill=r)) +
+      geom_raster() +
+      theme_bw() +
+      scale_x_discrete(drop = FALSE) +
+      scale_y_discrete(drop = FALSE) + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+ggsave("bench-undefined.pdf", p1, device = "pdf",units = "cm", width = 21, height = 120)
+
+
+```
+
+```{r setup-print-venn}
+print_venn <- TRUE
+#print_venn <- FALSE
+```
+
+
+```{r venn-correct}
+
+
+#list of columns
+isOk <- dataset %>% filter(Category == "correct") %>% 
+  filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+  mutate(ok = (Result == "OK")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+
+c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+c_gson <- isOk %>% filter(`gson` == TRUE)
+c_json <- isOk %>% filter(`json` == TRUE)
+c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+
+ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File)
+snames = c("fastjson","gson","json","json-simple","jackson-databind")
+
+if(print_venn) pdf("venn_correct_ok.pdf")
+venn(
+  ven_in,
+  snames = snames,
+  ilab = TRUE,
+  zcolor = "style",
+  cexil = 1.5,
+  cexsn = 1.5
+)
+if(print_venn) dev.off() 
+
+```
+
+```{r venn-correct-or-eq}
+
+
+#list of columns
+isOk <- dataset %>% filter(Category == "correct") %>% 
+  filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+  mutate(ok = (Result == "OK" | Result == "EQUIVALENT_OBJECT")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+
+c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+c_gson <- isOk %>% filter(`gson` == TRUE)
+c_json <- isOk %>% filter(`json` == TRUE)
+c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+
+ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File)
+snames = c("fastjson", "gson", "json", "json-simple", "jackson")
+
+if(print_venn) pdf("venn_correct_ok_or_eq.pdf")
+venn(
+  ven_in,
+  snames = snames,
+  ilab = TRUE,
+  zcolor = "style",
+  cexil = 1.5,
+  cexsn = 1.5
+)
+if(print_venn) dev.off() 
+
+```
+
+```{r venn-incorrect}
+
+snames = c("fastjson","gson","json","json-simple","jackson")
+
+#list of columns
+isOk <- dataset %>% filter(Category == "errored") %>% 
+  filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+  mutate(ok = (Result == "PARSE_EXCEPTION" | Result == "NULL_OBJECT")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+
+c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+c_gson <- isOk %>% filter(`gson` == TRUE)
+c_json <- isOk %>% filter(`json` == TRUE)
+c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+
+ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File)
+
+if(print_venn) pdf("venn_errored_ok.pdf")
+venn(
+  ven_in,
+  snames = snames,
+  ilab = TRUE,
+  zcolor = "style",
+  cexil = 1.5,
+  cexsn = 1.5
+)
+if(print_venn) dev.off() 
+
+```
+
+```{r venn-undefined-ok}
+
+
+# snames = c("fastjson","gson","json","json-simple","jackson-databind")
+# #list of columns
+# isOk <- dataset %>% filter(Category == "undefined") %>% 
+#   filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+#   mutate(ok = (Result == "OK")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+# 
+# c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+# c_gson <- isOk %>% filter(`gson` == TRUE)
+# c_json <- isOk %>% filter(`json` == TRUE)
+# c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+# c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+# 
+# ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File)
+# 
+# if(print_venn) pdf("venn_undefined_ok.pdf")
+# venn(
+#   ven_in,
+#   snames = snames,
+#   ilab = TRUE,
+#   zcolor = "style",
+#   cexil = 1.5,
+#   cexsn = 1.5
+# )
+# if(print_venn) dev.off() 
+
+```
+
+```{r venn-undefined-neq}
+# snames = c("fastjson","gson","json","json-simple","jackson-databind")
+# #list of columns
+# isOk <- dataset %>% filter(Category == "undefined") %>% 
+#   filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+#   mutate(ok = (Result == "NON_EQUIVALENT_OBJECT")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+# 
+# c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+# c_gson <- isOk %>% filter(`gson` == TRUE)
+# c_json <- isOk %>% filter(`json` == TRUE)
+# c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+# c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+# 
+# ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File)
+# 
+# if(print_venn) pdf("venn_undefined_non_eq.pdf")
+# venn(
+#   ven_in,
+#   snames = snames,
+#   ilab = TRUE,
+#   zcolor = "style",
+#   cexil = 1.5,
+#   cexsn = 1.5
+# )
+# if(print_venn) dev.off() 
+
+```
+
+```{r venn-undefined-eq}
+
+
+# snames = c("fastjson","gson","json","json-simple","jackson-databind")
+# #list of columns
+# isOk <- dataset %>% filter(Category == "undefined") %>% 
+#   filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+#   mutate(ok = (Result == "EQUIVALENT_OBJECT")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+# 
+# c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+# c_gson <- isOk %>% filter(`gson` == TRUE)
+# c_json <- isOk %>% filter(`json` == TRUE)
+# c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+# c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+# 
+# ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File)
+# 
+# if(print_venn) pdf("venn_undefined_eq.pdf")
+# venn(
+#   ven_in,
+#   snames = snames,
+#   ilab = TRUE,
+#   zcolor = "style",
+#   cexil = 1.5,
+#   cexsn = 1.5
+# )
+# if(print_venn) dev.off() 
+
+```
+
+```{r venn-undefined-ok-or-eq}
+
+# snames = c("fastjson","gson","json","json-simple","jackson-databind")
+# 
+# #list of columns
+# isOk <- dataset %>% filter(Category == "undefined") %>% 
+#   filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+#   mutate(ok = (Result == "OK" | Result == "EQUIVALENT_OBJECT")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+# 
+# c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+# c_gson <- isOk %>% filter(`gson` == TRUE)
+# c_json <- isOk %>% filter(`json` == TRUE)
+# c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+# c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+# 
+# ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File)
+# 
+# if(print_venn) pdf("venn_undefined_ok_eq.pdf")
+# venn(
+#   ven_in,
+#   snames = snames,
+#   ilab = TRUE,
+#   zcolor = "style",
+#   cexil = 1.5,
+#   cexsn = 1.5
+# )
+# if(print_venn) dev.off() 
+
+```
+
+```{r venn-undefined-ex}
+
+
+# snames = c("fastjson","gson","json","json-simple","jackson-databind")
+# #list of columns
+# isOk <- dataset %>% filter(Category == "undefined") %>% 
+#   filter(Parser %in% c("fastjson","gson","json","json-simple","jackson-databind")) %>%
+#   mutate(ok = (Result == "PARSE_EXCEPTION")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+# 
+# c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+# c_gson <- isOk %>% filter(`gson` == TRUE)
+# c_json <- isOk %>% filter(`json` == TRUE)
+# c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+# c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+# 
+# ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File)
+# 
+# if(print_venn) pdf("venn_undefined_exception.pdf")
+# venn(
+#   ven_in,
+#   snames = snames,
+#   ilab = TRUE,
+#   zcolor = "style",
+#   cexil = 1.5,
+#   cexsn = 1.5
+# )
+# if(print_venn) dev.off() 
+
+```
+
+
+
+```{r venn-correct-or-eq-7}
+
+implems
+
+snames = c("fastjson","gson","json","json-simple","jackson-databind","cookjson","json-io")#,"jsonp")
+
+#list of columns
+isOk <- dataset %>% filter(Category == "correct") %>%
+  filter(Parser %in% snames) %>%
+  mutate(ok = (Result == "OK" | Result == "EQUIVALENT_OBJECT")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+
+c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+c_gson <- isOk %>% filter(`gson` == TRUE)
+c_json <- isOk %>% filter(`json` == TRUE)
+c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+c_cookjson <- isOk %>% filter(`cookjson` == TRUE)
+c_json_io <- isOk %>% filter(`json-io` == TRUE)
+#c_jsonp <- isOk %>% filter(`jsonp` == TRUE)
+
+ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File, c_cookjson$File, c_json_io$File)#, c_jsonp$File)
+
+if(print_venn) pdf("venn_correct_7_ok_or_eq.pdf")
+venn(
+  ven_in,
+  snames = snames,
+  ilab = TRUE,
+  zcolor = "style",
+  cexil = 1.5,
+  cexsn = 1.5
+)
+if(print_venn) dev.off()
+
+```
+```{r venn-errored-7}
+
+implems
+
+snames = c("fastjson","gson","json","json-simple","jackson-databind","cookjson","json-io")#,"jsonp")
+
+#list of columns
+isOk <- dataset %>% filter(Category == "errored") %>% 
+  filter(Parser %in% snames) %>%
+  mutate(ok = (Result == "PARSE_EXCEPTION")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+
+c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+c_gson <- isOk %>% filter(`gson` == TRUE)
+c_json <- isOk %>% filter(`json` == TRUE)
+c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+c_cookjson <- isOk %>% filter(`cookjson` == TRUE)
+c_json_io <- isOk %>% filter(`json-io` == TRUE)
+#c_jsonp <- isOk %>% filter(`jsonp` == TRUE)
+
+ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File, c_cookjson$File, c_json_io$File)#, c_jsonp$File)
+
+if(print_venn) pdf("venn_errored_7_ok.pdf")
+venn(
+  ven_in,
+  snames = snames,
+  ilab = TRUE,
+  zcolor = "style",
+  cexil = 1.5,
+  cexsn = 1.5
+)
+if(print_venn) dev.off() 
+
+```
+
+```{r venn-undefined-7-ok-or-eq}
+
+# implems
+# 
+# snames = c("fastjson","gson","json","json-simple","jackson-databind","cookjson","json-io")#,"jsonp")
+# 
+# #list of columns
+# isOk <- dataset %>% filter(Category == "undefined") %>% 
+#   filter(Parser %in% snames) %>%
+#   mutate(ok = (Result == "OK" | Result == "EQUIVALENT_OBJECT")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+# 
+# c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+# c_gson <- isOk %>% filter(`gson` == TRUE)
+# c_json <- isOk %>% filter(`json` == TRUE)
+# c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+# c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+# c_cookjson <- isOk %>% filter(`cookjson` == TRUE)
+# c_json_io <- isOk %>% filter(`json-io` == TRUE)
+# #c_jsonp <- isOk %>% filter(`jsonp` == TRUE)
+# 
+# ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File, c_cookjson$File, c_json_io$File)#, c_jsonp$File)
+# 
+# if(print_venn) pdf("venn_undefined_7_t_ok_or_eq.pdf")
+# venn(
+#   ven_in,
+#   snames = snames,
+#   ilab = TRUE,
+#   zcolor = "style",
+#   cexil = 1.5,
+#   cexsn = 1.5
+# )
+# if(print_venn) dev.off() 
+
+```
+
+```{r venn-undefined-7-parse-ex}
+# 
+# implems
+# 
+# snames = c("fastjson","gson","json","json-simple","jackson-databind","cookjson","json-io")#,"jsonp")
+# 
+# #list of columns
+# isOk <- dataset %>% filter(Category == "undefined") %>% 
+#   filter(Parser %in% snames) %>%
+#   mutate(ok = (Result == "PARSE_EXCEPTION")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+# 
+# c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+# c_gson <- isOk %>% filter(`gson` == TRUE)
+# c_json <- isOk %>% filter(`json` == TRUE)
+# c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+# c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+# c_cookjson <- isOk %>% filter(`cookjson` == TRUE)
+# c_json_io <- isOk %>% filter(`json-io` == TRUE)
+# #c_jsonp <- isOk %>% filter(`jsonp` == TRUE)
+# 
+# ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File, c_cookjson$File, c_json_io$File)#, c_jsonp$File)
+# 
+# if(print_venn) pdf("venn_undefined_7_exception.pdf")
+# venn(
+#   ven_in,
+#   snames = snames,
+#   ilab = TRUE,
+#   zcolor = "style",
+#   cexil = 1.5,
+#   cexsn = 1.5
+# )
+# if(print_venn) dev.off() 
+
+```
+
+
+```{r venn-undefined-7-non-eq}
+
+# implems
+# 
+# snames = c("fastjson","gson","json","json-simple","jackson-databind","cookjson","json-io")#,"jsonp")
+# 
+# #list of columns
+# isOk <- dataset %>% filter(Category == "undefined") %>% 
+#   filter(Parser %in% snames) %>%
+#   mutate(ok = (Result == "NON_EQUIVALENT_OBJECT")) %>% select(Parser,File,ok) %>% spread(Parser, ok)
+# 
+# c_fastjson <- isOk %>% filter(`fastjson` == TRUE)
+# c_gson <- isOk %>% filter(`gson` == TRUE)
+# c_json <- isOk %>% filter(`json` == TRUE)
+# c_json_simple <- isOk %>% filter(`json-simple` == TRUE)
+# c_jackson <- isOk %>% filter(`jackson-databind` == TRUE)
+# c_cookjson <- isOk %>% filter(`cookjson` == TRUE)
+# c_json_io <- isOk %>% filter(`json-io` == TRUE)
+# #c_jsonp <- isOk %>% filter(`jsonp` == TRUE)
+# 
+# ven_in <- list(c_fastjson$File, c_gson$File, c_json$File, c_json_simple$File, c_jackson$File, c_cookjson$File, c_json_io$File)#, c_jsonp$File)
+# 
+# if(print_venn) pdf("venn_undefined_7_neq.pdf")
+# venn(
+#   ven_in,
+#   snames = snames,
+#   ilab = TRUE,
+#   zcolor = "style",
+#   cexil = 1.5,
+#   cexsn = 1.5
+# )
+# if(print_venn) dev.off() 
+
+```
