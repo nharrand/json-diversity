@@ -7,4 +7,4 @@ This JSON test suite is composed of json files extracted from these sources:
  * Test suite associated with [Parsing JSON is a minefield](http://seriot.ch/parsing_json.php) https://github.com/nst/JSONTestSuite
  * http://www.json.org/JSON_checker/
 
-In the `correct` directory are well formed json file, while `errored` contains malformed one. `undefined` contains exemple not so clearcut.
+In the `correct` directory are Well formed json file, while `errored` contains Ill-formed one. `undefined` contains exemple not so clearcut, but they do conform to the JSON grammar and may be considered as Well formed.
